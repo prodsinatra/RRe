@@ -1,0 +1,6 @@
+{
+  "name": "808 Release Readiness Engine",
+  "description": "A full-stack web application for 808 SZN Studio that prepares and validates release packages with deterministic checks and AI summarization.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

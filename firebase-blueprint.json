@@ -1,0 +1,17 @@
+{
+  "collections": [
+    {
+      "name": "projects",
+      "fields": {
+        "title": "string",
+        "ownerId": "string"
+      }
+    },
+    {
+      "name": "policies",
+      "fields": {
+        "version": "string"
+      }
+    }
+  ]
+}
