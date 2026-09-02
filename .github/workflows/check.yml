@@ -23,6 +23,13 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      # The emulator jar is ~60 MB and is otherwise re-downloaded every run;
+      # CI warns about exactly this.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ runner.os }}
+
       - run: npm ci
 
       # Typecheck, domain tests, Firestore rules tests, and both builds.
