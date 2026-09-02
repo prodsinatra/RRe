@@ -1,10 +1,26 @@
 rules_version = '2';
 
+// 808 SZN Release Readiness Engine — Firestore security rules.
+//
+// This application has NO direct client access to Firestore. Every read and
+// write goes through the Express API (server.ts), which uses the Firebase
+// Admin SDK. The Admin SDK bypasses these rules entirely, so denying all
+// client access here costs the application nothing, while closing the
+// database to anyone holding the web config — which is public by design and
+// committed in firebase-applet-config.json.
+//
+// The previous rule, `allow read, write: if request.auth != null`, let any
+// signed-in user read and modify every project, every wallet balance and
+// every ledger entry in the database, straight from a browser console.
+//
+// If a feature ever needs to read Firestore from the browser, add a narrow
+// rule for that exact path with a membership check, and cover it in
+// test/firestore-rules.test.ts. Do not widen this default.
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow any authenticated user to read/write for now
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if false;
     }
   }
 }

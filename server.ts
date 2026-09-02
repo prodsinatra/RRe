@@ -202,7 +202,7 @@ app.put("/api/policies/active", requireAuth, authorizeRoles("admin"), async (req
 });
 
 // Projects Collection
-app.get("/api/projects", async (req, res) => {
+app.get("/api/projects", requireAuth, authorizeRoles("viewer", "operator", "approver", "admin"), async (req, res) => {
   try {
     const projects = await getAllProjects();
     res.json({ projects });

@@ -16,10 +16,25 @@ jobs:
           node-version: '22'
           cache: npm
 
+      # The Firestore emulator, which npm run test:rules drives, is a Java
+      # process. Pinned rather than relying on whatever the runner image ships.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # The emulator jar is ~60 MB and is otherwise re-downloaded every run;
+      # CI warns about exactly this.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ runner.os }}
+
       - run: npm ci
 
-      # Typecheck, domain tests, and both builds.
-      # These must stay free of backend credentials: the domain tests cover the
+      # Typecheck, domain tests, Firestore rules tests, and both builds.
+      # These must stay free of cloud credentials: the domain tests cover the
       # rule engine, state machine, audio diagnostics, SSRF guard and canonical
-      # JSON, none of which should need a database to run.
+      # JSON, and the rules tests run against the local emulator on a demo
+      # project id. Nothing here touches a real Firebase project.
       - run: npm run check
