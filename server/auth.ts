@@ -16,6 +16,19 @@ const db = getFirestore();
 // Role definition
 export type UserRole = "viewer" | "operator" | "approver" | "admin";
 
+// See the note in requireAuth. Closed unless explicitly opened, and never
+// openable in production.
+export const MOCK_AUTH_ENABLED =
+  process.env.ALLOW_MOCK_AUTH === "true" && process.env.NODE_ENV !== "production";
+
+if (MOCK_AUTH_ENABLED) {
+  console.warn(
+    "[auth] ALLOW_MOCK_AUTH is on: any `user_<role>_*` bearer token is accepted " +
+      "without verification. Local development only — never set this where the " +
+      "server is reachable by anyone else."
+  );
+}
+
 export interface AuthenticatedUser {
   uid: string;
   email?: string;
@@ -41,7 +54,18 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
   const token = authHeader.split("Bearer ")[1];
 
   try {
-    if (token.startsWith("user_")) {
+    // Local-development escape hatch: a token of the form `user_<role>_<x>` is
+    // accepted at face value, with the role read straight out of the string.
+    //
+    // This is an authentication bypass by construction, so it is double-gated:
+    // it requires ALLOW_MOCK_AUTH=true to be set explicitly, and it is refused
+    // outright when NODE_ENV is "production". Both default to closed.
+    //
+    // It exists only because the browser has no real sign-in yet: LoginPage is
+    // a role picker and AuthContext fabricates a localStorage user whose id is
+    // sent as the bearer token. Once Firebase Auth is wired into the client,
+    // delete this branch and the flag with it.
+    if (MOCK_AUTH_ENABLED && token.startsWith("user_")) {
       const parts = token.split("_");
       let role = (parts[1] || "viewer");
       if (!["viewer", "operator", "approver", "admin"].includes(role)) {
