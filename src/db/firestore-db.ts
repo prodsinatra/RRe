@@ -2,15 +2,8 @@ import { db as adminDb } from "../lib/firebase-admin";
 let db: any = adminDb;
 import { ReadinessProject, CheckPolicy, ProjectEvent } from "../types";
 
-export const defaultPolicy: CheckPolicy = {
-  id: "policy_01",
-  version: "v1.0",
-  requiredRoles: ["Producer", "Songwriter"],
-  artworkDimensions: "3000x3000",
-  artworkFileTypes: ["image/jpeg", "image/png"],
-  assetNamingConvention: "^[A-Za-z0-9_]+_(MASTER|INST|CLEAN|STEM)_v[0-9]+\\.wav$",
-  createdAt: new Date().toISOString()
-};
+export { defaultPolicy } from "./policy-defaults";
+import { defaultPolicy } from "./policy-defaults";
 
 export const initialMockProject: ReadinessProject = {
   id: "proj_123456",
