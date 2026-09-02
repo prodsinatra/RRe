@@ -1,7 +1,7 @@
 import { sha256Canonical } from "./src/lib/crypto/canonicalJson.js";
 import assert from "node:assert";
 import { runDeterministicChecks } from "./src/db/rule-engine";
-import { defaultPolicy } from "./src/db/in-memory-db";
+import { defaultPolicy } from "./src/db/policy-defaults";
 import { ReadinessProject, ContributorCredit, CheckPolicy } from "./src/types";
 import { aiSummarySchema } from "./src/types";
 import {
