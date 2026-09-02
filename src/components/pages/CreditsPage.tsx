@@ -1,3 +1,4 @@
+import { fetchApi } from "../../lib/fetchApi";
 import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { ReadinessProject, RoyaltyType, ContributorCredit } from "../../types";
@@ -52,7 +53,7 @@ export function CreditsPage() {
     setIsSaving(true);
     setStatusMessage(null);
     try {
-      const res = await fetch(`/api/projects/${project.id}`, {
+      const res = await fetchApi(`/api/projects/${project.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 

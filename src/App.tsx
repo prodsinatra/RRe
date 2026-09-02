@@ -1,3 +1,4 @@
+import { fetchApi } from "./lib/fetchApi";
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -55,7 +56,7 @@ function Layout() {
             {/* Tokens Pill */}
             <button onClick={async () => {
               try {
-                const res = await fetch("/api/checkout/create-session", {
+                const res = await fetchApi("/api/checkout/create-session", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ userId: user.id, tokens: 5 })

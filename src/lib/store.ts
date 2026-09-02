@@ -1,3 +1,4 @@
+import { fetchApi } from "./fetchApi";
 import { create } from 'zustand';
 import { ReadinessProject, ProjectState } from '../types';
 
@@ -16,7 +17,7 @@ export const useStore = create<GlobalState>((set) => ({
   walletTokens: 0,
   fetchProjects: async () => {
     try {
-      const res = await fetch('/api/projects');
+      const res = await fetchApi('/api/projects');
       const data = await res.json();
       set({ projects: data.projects || [], loading: false });
     } catch (e) {
@@ -26,7 +27,7 @@ export const useStore = create<GlobalState>((set) => ({
   },
   fetchWallet: async (userId: string) => {
     try {
-      const res = await fetch(`/api/wallet/${userId}`);
+      const res = await fetchApi(`/api/wallet/me`);
       const data = await res.json();
       set({ walletTokens: data.balance || 0 });
     } catch (e) {

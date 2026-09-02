@@ -1,3 +1,4 @@
+import { fetchApi } from "../../lib/fetchApi";
 import { useOutletContext } from "react-router-dom";
 import { ReadinessProject } from "../../types";
 import { Button } from "../ui/button";
@@ -19,7 +20,7 @@ export function ChecksPage() {
     setRunning(true);
     updatePresence("checks", undefined, "Running deterministic checks");
     try {
-      const res = await fetch(`/api/projects/${project.id}/checks`, {
+      const res = await fetchApi(`/api/projects/${project.id}/checks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ actorId: user?.id, actorRole: user?.role })

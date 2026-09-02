@@ -1,3 +1,4 @@
+import { fetchApi } from "../../lib/fetchApi";
 import { useState, useEffect } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import { ReadinessProject, AISummary } from "../../types";
@@ -30,7 +31,7 @@ export function ReviewPage() {
     setError(null);
     updatePresence("review", undefined, "Generating AI Synthesis");
     try {
-      const res = await fetch(`/api/projects/${project.id}/summary`, { method: "POST" });
+      const res = await fetchApi(`/api/projects/${project.id}/summary`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to generate summary");
       setSummary(data.summary);
@@ -49,7 +50,7 @@ export function ReviewPage() {
     setApproving(true);
     updatePresence("review", undefined, "Signing Authorization Manifest");
     try {
-      const res = await fetch(`/api/projects/${project.id}/approve`, { 
+      const res = await fetchApi(`/api/projects/${project.id}/approve`, { 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ actorId: user?.id, actorRole: user?.role })

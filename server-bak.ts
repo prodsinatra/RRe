@@ -1,10 +1,3 @@
-
-import { requireAuth, authorizeRoles } from "./server/auth.js";
-import { getWalletBalance, creditWallet, debitWalletForManifest } from "./src/db/wallet-db.js";
-import { sha256Canonical } from "./src/lib/crypto/canonicalJson.js";
-import { validateWebhookUrl } from "./server/webhook-security.js";
-import { CreateProjectSchema, UpdateProjectSchema, StateTransitionSchema, ArtworkGenerateSchema } from "./server/validators.js";
-import { z } from "zod";
 import express from "express";
 import http from "http";
 import path from "path";
@@ -15,39 +8,6 @@ import { config } from "dotenv";
 config();
 
 const app = express();
-
-// Phase 3: Stripe Webhook must parse raw body
-app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async (req, res) => {
-  const sig = req.headers["stripe-signature"];
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-  let event;
-  try {
-    if (!endpointSecret) throw new Error("Missing STRIPE_WEBHOOK_SECRET");
-    const stripe = getStripe();
-    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
-  } catch (err) {
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object;
-    const userId = session.metadata?.userId;
-    // Assuming our price is $5.00 for 1 token for simplicity, or decode amount/price mapping.
-    // For now we'll just parse the metadata or assume 1 token = $5.00
-    // Actually the checkout sends 'tokens' inside metadata if we want, but let's just do (amount_total / 500)
-    const tokens = session.amount_total ? Math.floor(session.amount_total / 500) : 1;
-    if (userId) {
-      try {
-        await creditWallet(userId, tokens, "Stripe Checkout", event.id);
-      } catch (err) {
-        console.error("Wallet credit error:", err.message);
-      }
-    }
-  }
-  res.send();
-});
-
 app.use(express.json());
 
 const PORT = 3000;
@@ -56,7 +16,9 @@ const PORT = 3000;
 // Integrations: Stripe & Tokens
 // ==========================================
 import Stripe from "stripe";
-
+const userWallets: Record<string, number> = {
+  "user_1": 2,
+};
 
 let stripeClient: Stripe | null = null;
 function getStripe(): Stripe {
@@ -67,21 +29,18 @@ function getStripe(): Stripe {
   return stripeClient;
 }
 
-app.get("/api/wallet/me", requireAuth, async (req, res) => {
-  try {
-    const balance = await getWalletBalance(req.user!.uid);
-    res.json({ balance });
-  } catch (e) {
-    res.status(500).json({ error: "Failed to fetch wallet" });
-  }
+app.get("/api/wallet/:userId", (req, res) => {
+  const userId = req.params.userId;
+  const balance = userWallets[userId] || 0;
+  res.json({ balance });
 });
 
-app.post("/api/checkout/create-session", requireAuth, async (req, res) => {
-  if (process.env.ENABLE_BILLING !== "true") {
-    return res.status(400).json({ error: "Billing is disabled in this environment." });
-  }
+app.post("/api/checkout/create-session", async (req, res) => {
   if (!process.env.STRIPE_SECRET_KEY) {
-    return res.status(500).json({ error: "Server configuration error: Stripe key missing." });
+    // Mocking the behavior for the preview
+    const { userId, tokens } = req.body;
+    userWallets[userId] = (userWallets[userId] || 0) + tokens;
+    return res.json({ url: "/?success=true", mocked: true });
   }
 
   try {
@@ -105,7 +64,7 @@ app.post("/api/checkout/create-session", requireAuth, async (req, res) => {
       success_url: `${req.protocol}://${req.get('host')}/?success=true`,
       cancel_url: `${req.protocol}://${req.get('host')}/?canceled=true`,
       metadata: {
-        userId: req.user!.uid
+        userId: req.body.userId
       }
     });
     res.json({ url: session.url });
@@ -191,8 +150,7 @@ app.get("/api/policies/active", async (req, res) => {
   }
 });
 
-app.put("/api/policies/active", requireAuth, authorizeRoles("admin"), async (req, res, next) => {
-  if (!validateWebhookUrl(req.body.webhookUrl)) return res.status(400).json({ error: "Invalid webhook URL" });
+app.put("/api/policies/active", async (req, res) => {
   try {
     const updated = await updateActivePolicy(req.body);
     res.json({ policy: updated });
@@ -211,10 +169,9 @@ app.get("/api/projects", async (req, res) => {
   }
 });
 
-app.post("/api/projects", requireAuth, authorizeRoles("operator", "admin"), async (req, res, next) => {
+app.post("/api/projects", async (req, res) => {
   try {
-    const validData = CreateProjectSchema.parse(req.body);
-    const newProj = await createProject({ ...validData, ownerId: req.user!.uid });
+    const newProj = await createProject(req.body);
     realtimeHub.broadcastProjectUpdate(newProj.id, newProj);
     res.status(201).json({ project: newProj });
   } catch (error) {
@@ -222,7 +179,7 @@ app.post("/api/projects", requireAuth, authorizeRoles("operator", "admin"), asyn
   }
 });
 
-app.get("/api/projects/:id", requireAuth, authorizeRoles("viewer", "operator", "approver", "admin"), async (req, res) => {
+app.get("/api/projects/:id", async (req, res) => {
   try {
     const proj = await getProject(req.params.id);
     if (!proj) {
@@ -234,7 +191,7 @@ app.get("/api/projects/:id", requireAuth, authorizeRoles("viewer", "operator", "
   }
 });
 
-app.delete("/api/projects/:id", requireAuth, authorizeRoles("operator", "admin"), async (req, res) => {
+app.delete("/api/projects/:id", async (req, res) => {
   try {
     await deleteProject(req.params.id);
     res.json({ success: true });
@@ -244,7 +201,7 @@ app.delete("/api/projects/:id", requireAuth, authorizeRoles("operator", "admin")
 });
 
 // Project Modification with State Machine Enforcement
-app.put("/api/projects/:id", requireAuth, authorizeRoles("operator", "admin"), async (req, res) => {
+app.put("/api/projects/:id", async (req, res) => {
   const proj = await getProject(req.params.id);
   if (!proj) return res.status(404).json({ error: "Project not found" });
 
@@ -299,7 +256,7 @@ app.put("/api/projects/:id", requireAuth, authorizeRoles("operator", "admin"), a
       const resTrans = applyStateTransition(
         updatedProjectState,
         { type: "MATERIAL_EDIT", reason: "Material data modification" },
-        { id: req.user!.uid, role: req.user!.role },
+        { id: actorId, role: actorRole },
         `sha256-rev-${proj.revision + 1}-${Date.now()}`
       );
       updatedProjectState = resTrans.nextProject;
@@ -321,7 +278,7 @@ app.put("/api/projects/:id", requireAuth, authorizeRoles("operator", "admin"), a
         const resTrans = applyStateTransition(
           updatedProjectState,
           { type: "STAGE_FOR_CHECKS" },
-          { id: req.user!.uid, role: req.user!.role }
+          { id: actorId, role: actorRole }
         );
         updatedProjectState = resTrans.nextProject;
         eventLog = resTrans.eventLog;
@@ -341,7 +298,7 @@ app.put("/api/projects/:id", requireAuth, authorizeRoles("operator", "admin"), a
 });
 
 // Generic State Transition Handler
-app.post("/api/projects/:id/transition", requireAuth, authorizeRoles("operator", "admin"), async (req, res) => {
+app.post("/api/projects/:id/transition", async (req, res) => {
   const proj = await getProject(req.params.id);
   if (!proj) return res.status(404).json({ error: "Project not found" });
 
@@ -349,7 +306,7 @@ app.post("/api/projects/:id/transition", requireAuth, authorizeRoles("operator",
     const { eventType, actorId = "operator", actorRole = "operator", note } = req.body;
     const event: ReleaseEvent = { type: eventType, actorId, role: actorRole, note } as any;
 
-    const validation = validateStateTransition(proj, event, { id: req.user!.uid, role: req.user!.role });
+    const validation = validateStateTransition(proj, event, { id: actorId, role: actorRole });
     if (!validation.valid) {
       return res.status(400).json({ error: validation.reason });
     }
@@ -357,7 +314,7 @@ app.post("/api/projects/:id/transition", requireAuth, authorizeRoles("operator",
     const { nextProject, eventLog } = applyStateTransition(
       proj,
       event,
-      { id: req.user!.uid, role: req.user!.role },
+      { id: actorId, role: actorRole },
       `transition-${eventType}-${Date.now()}`
     );
 
@@ -375,7 +332,7 @@ app.post("/api/projects/:id/transition", requireAuth, authorizeRoles("operator",
 });
 
 // Deterministic Check Execution
-app.post("/api/projects/:id/checks", requireAuth, authorizeRoles("operator", "admin"), async (req, res) => {
+app.post("/api/projects/:id/checks", async (req, res) => {
   const proj = await getProject(req.params.id);
   if (!proj) return res.status(404).json({ error: "Project not found" });
 
@@ -420,18 +377,18 @@ app.post("/api/projects/:id/checks", requireAuth, authorizeRoles("operator", "ad
 });
 
 // Formal Approval Gate
-app.post("/api/projects/:id/approve", requireAuth, authorizeRoles("approver", "admin"), async (req, res) => {
+app.post("/api/projects/:id/approve", async (req, res) => {
   const proj = await getProject(req.params.id);
   if (!proj) return res.status(404).json({ error: "Project not found" });
 
-  const actorId = req.user!.uid;
-  const actorRole = req.user!.role;
+  const actorId = req.body.actorId || "approver_1";
+  const actorRole = req.body.actorRole || "approver";
 
   try {
     const validation = validateStateTransition(
       proj,
       { type: "APPROVE_RELEASE", actorId, role: actorRole },
-      { id: req.user!.uid, role: req.user!.role }
+      { id: actorId, role: actorRole }
     );
 
     if (!validation.valid) {
@@ -471,7 +428,7 @@ app.post("/api/projects/:id/approve", requireAuth, authorizeRoles("approver", "a
     const { nextProject, eventLog } = applyStateTransition(
       projectWithSnapshot,
       { type: "APPROVE_RELEASE", actorId, role: actorRole },
-      { id: req.user!.uid, role: req.user!.role },
+      { id: actorId, role: actorRole },
       `sha256-${inputDigest}`
     );
 
@@ -488,46 +445,51 @@ app.post("/api/projects/:id/approve", requireAuth, authorizeRoles("approver", "a
 });
 
 // Delivery Manifest Generation
-app.post("/api/projects/:id/manifest", requireAuth, authorizeRoles("operator", "admin"), async (req, res) => {
+app.post("/api/projects/:id/manifest", async (req, res) => {
   const proj = await getProject(req.params.id);
   if (!proj) return res.status(404).json({ error: "Project not found" });
 
+  const actorId = req.body.actorId || "operator";
+  const actorRole = req.body.actorRole || "operator";
+
   try {
-    if (proj.ownerId !== req.user!.uid && req.user!.role !== "admin") {
-      return res.status(403).json({ error: "Forbidden: Not your project" });
+    const validation = validateStateTransition(
+      proj,
+      { type: "GENERATE_MANIFEST" },
+      { id: actorId, role: actorRole }
+    );
+
+    if (!validation.valid) {
+      return res.status(400).json({ error: validation.reason });
     }
 
-    if (proj.state === "manifest_generated") {
-      return res.status(400).json({ error: "Manifest already generated for this revision." });
+    // 4. Token Deduction Check
+    const currentTokens = userWallets[actorId] || 0;
+    if (currentTokens <= 0) {
+      return res.status(402).json({ error: "Insufficient Readiness Tokens to seal manifest. Please recharge your wallet." });
     }
+    userWallets[actorId] = currentTokens - 1;
 
-    // Attempt token deduction first
-    try {
-      await debitWalletForManifest(req.user!.uid, proj.id);
-    } catch (err: any) {
-      return res.status(402).json({ error: err.message || "Insufficient Readiness Tokens" });
-    }
-
+    // Generate deterministic JSON
     const manifestData = {
       releaseId: proj.id,
       title: proj.title,
       artist: proj.primaryArtist,
-      targetDate: proj.targetDate,
       revision: proj.revision,
-      policyVersion: "1.0",
       generatedAt: new Date().toISOString(),
-      findings: proj.findings.map(f => ({
-        code: f.code,
-        severity: f.severity,
-        status: f.status
-      })),
-      assets: proj.assets.map(a => ({
-        id: a.id,
+      assets: proj.assets.map((a) => ({
+        filename: a.filename,
+        type: a.assetType,
+        mimeType: a.mimeType,
+        bytes: a.bytes,
         checksum: a.checksum,
-        type: a.assetType
-      }))
+        version: a.version
+      })),
+      credits: proj.credits,
+      ruleSetVersion: "v1.0"
     };
 
+    // CSV format
     const csvHeaders = "filename,type,mimeType,bytes,checksum,version\n";
     const csvRows = proj.assets
       .map(
@@ -537,8 +499,9 @@ app.post("/api/projects/:id/manifest", requireAuth, authorizeRoles("operator", "
       .join("\n");
 
     const jsonString = JSON.stringify(manifestData, null, 2);
-    const digest = `sha256-${sha256Canonical(manifestData)}`;
-
+    const digest = req.body.clientDigest || `sha256-${crypto.createHash("sha256").update(jsonString).digest("hex")}`;
+    
+    // DDEX ERN XML format mock
     const ddexXml = `<?xml version="1.0" encoding="utf-8"?>
 <ern:NewReleaseMessage xmlns:ern="http://ddex.net/xml/ern/411" MessageSchemaVersionId="ern/411">
   <MessageHeader>
@@ -568,7 +531,7 @@ app.post("/api/projects/:id/manifest", requireAuth, authorizeRoles("operator", "
 </ern:NewReleaseMessage>`;
 
     const manifest = {
-      id: crypto.randomUUID(),
+      id: `man_${Date.now()}`,
       projectId: proj.id,
       snapshotId: proj.approvalSnapshot?.id || "draft_snapshot",
       generatedAt: manifestData.generatedAt,
@@ -586,18 +549,16 @@ app.post("/api/projects/:id/manifest", requireAuth, authorizeRoles("operator", "
     const { nextProject, eventLog } = applyStateTransition(
       projectWithManifest,
       { type: "GENERATE_MANIFEST" },
-      { id: req.user!.uid, role: req.user!.role },
+      { id: actorId, role: actorRole },
       digest
     );
 
     const saved = await updateProject(proj.id, nextProject);
-
     realtimeHub.broadcastProjectUpdate(saved.id, saved, eventLog);
     if (eventLog) {
       realtimeHub.broadcastProjectEvent(saved.id, eventLog);
       broadcastToWebhook(`Final Manifest Generated for **${proj.title}** (Digest: \`${digest.substring(0, 16)}...\`). Package is now fully locked.`);
     }
-
     res.json({ project: saved, manifest });
   } catch (error: any) {
     console.error("[Manifest Error]:", error);
@@ -606,7 +567,7 @@ app.post("/api/projects/:id/manifest", requireAuth, authorizeRoles("operator", "
 });
 
 // Artwork Generation
-app.post("/api/projects/:id/artwork/generate", requireAuth, authorizeRoles("operator", "admin"), async (req, res) => {
+app.post("/api/projects/:id/artwork/generate", async (req, res) => {
   const proj = await getProject(req.params.id);
   if (!proj) return res.status(404).json({ error: "Project not found" });
 
@@ -687,7 +648,7 @@ app.post("/api/projects/:id/artwork/generate", requireAuth, authorizeRoles("oper
 });
 
 // AI Readiness Summary
-app.post("/api/projects/:id/summary", requireAuth, authorizeRoles("operator", "admin"), async (req, res) => {
+app.post("/api/projects/:id/summary", async (req, res) => {
   const proj = await getProject(req.params.id);
   if (!proj) return res.status(404).json({ error: "Project not found" });
 
@@ -748,7 +709,7 @@ app.post("/api/projects/:id/summary", requireAuth, authorizeRoles("operator", "a
 });
 
 // Audit Trail Events
-app.get("/api/projects/:id/events", requireAuth, authorizeRoles("viewer", "operator", "approver", "admin"), async (req, res) => {
+app.get("/api/projects/:id/events", async (req, res) => {
   try {
     const proj = await getProject(req.params.id);
     if (!proj) return res.status(404).json({ error: "Project not found" });
@@ -756,15 +717,6 @@ app.get("/api/projects/:id/events", requireAuth, authorizeRoles("viewer", "opera
   } catch (error) {
     res.status(500).json({ error: String(error) });
   }
-});
-
-
-app.use((err: any, req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
-  console.error("Global Error:", err);
-  if (err instanceof z.ZodError) {
-    return res.status(400).json({ error: "Validation Error", details: err.issues });
-  }
-  res.status(500).json({ error: err.message || "Internal Server Error" });
 });
 
 // ==========================================

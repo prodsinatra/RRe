@@ -1,3 +1,4 @@
+import { fetchApi } from "../../lib/fetchApi";
 import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { ReadinessProject } from "../../types";
@@ -43,7 +44,7 @@ export function ManifestPage() {
       const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
       const clientDigest = `sha256-${hashHex}`;
 
-      const res = await fetch(`/api/projects/${project.id}/manifest`, { 
+      const res = await fetchApi(`/api/projects/${project.id}/manifest`, { 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ clientDigest, actorId: user?.id })

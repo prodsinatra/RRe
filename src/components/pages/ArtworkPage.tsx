@@ -1,3 +1,4 @@
+import { fetchApi } from "../../lib/fetchApi";
 import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { ReadinessProject } from "../../types";
@@ -29,7 +30,7 @@ export function ArtworkPage() {
     setIsGenerating(true);
     setError(null);
     try {
-      const res = await fetch(`/api/projects/${project.id}/artwork/generate`, {
+      const res = await fetchApi(`/api/projects/${project.id}/artwork/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: textToUse }),
@@ -51,7 +52,7 @@ export function ArtworkPage() {
     setShowDrivePicker(false);
     try {
       const imgUrl = file.thumbnailLink ? file.thumbnailLink.replace(/=s\d+/, "=s1000") : file.webViewLink || "";
-      const res = await fetch(`/api/projects/${project.id}`, {
+      const res = await fetchApi(`/api/projects/${project.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

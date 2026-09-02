@@ -1,3 +1,4 @@
+import { fetchApi } from "../../lib/fetchApi";
 import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { ReadinessProject, ReleaseAsset, AssetType } from "../../types";
@@ -70,7 +71,7 @@ export function AssetsPage() {
 
       const updatedAssets = [...assets, newAsset];
 
-      const res = await fetch(`/api/projects/${project.id}`, {
+      const res = await fetchApi(`/api/projects/${project.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -102,7 +103,7 @@ export function AssetsPage() {
   const handleDirectAssetIngested = async (newAsset: ReleaseAsset) => {
     try {
       const updatedAssets = [...assets, newAsset];
-      const res = await fetch(`/api/projects/${project.id}`, {
+      const res = await fetchApi(`/api/projects/${project.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -127,7 +128,7 @@ export function AssetsPage() {
   const handleDiagnosticsUpdated = async (updatedAsset: ReleaseAsset) => {
     try {
       const updatedAssets = assets.map((a) => (a.id === updatedAsset.id ? updatedAsset : a));
-      const res = await fetch(`/api/projects/${project.id}`, {
+      const res = await fetchApi(`/api/projects/${project.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -149,7 +150,7 @@ export function AssetsPage() {
     if (!confirm("Are you sure you want to remove this asset?")) return;
     try {
       const updatedAssets = assets.filter((a) => a.id !== assetId);
-      const res = await fetch(`/api/projects/${project.id}`, {
+      const res = await fetchApi(`/api/projects/${project.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -204,7 +205,7 @@ export function AssetsPage() {
       };
 
       const updatedAssets = [...assets, newAsset];
-      const res = await fetch(`/api/projects/${project.id}`, {
+      const res = await fetchApi(`/api/projects/${project.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -250,7 +251,7 @@ export function AssetsPage() {
         })
       );
 
-      const res = await fetch(`/api/projects/${project.id}`, {
+      const res = await fetchApi(`/api/projects/${project.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

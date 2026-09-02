@@ -1,3 +1,4 @@
+import { fetchApi } from "../../lib/fetchApi";
 import { useState, useEffect } from "react";
 import { useParams, Outlet, Link, useLocation } from "react-router-dom";
 import { ReadinessProject } from "../../types";
@@ -15,7 +16,7 @@ export function ProjectLayout() {
   const { joinRoom, leaveRoom, updatePresence, subscribeToProject } = useRealtime();
 
   const fetchProject = () => {
-    fetch(`/api/projects/${id}`)
+    fetchApi(`/api/projects/${id}`)
       .then(res => res.json())
       .then(data => {
         if (data.project) {

@@ -1,3 +1,4 @@
+import { sha256Canonical } from "./src/lib/crypto/canonicalJson.js";
 import assert from "node:assert";
 import { runDeterministicChecks } from "./src/db/rule-engine";
 import { defaultPolicy } from "./src/db/in-memory-db";
@@ -175,3 +176,28 @@ testZodRejection();
 testStateMachineTransitions();
 testAudioDiagnostics();
 console.log("🎉 All automated domain, state machine & signal diagnostics tests passed successfully.");
+import { validateWebhookUrl } from "./server/webhook-security";
+
+function testWebhookSecurity() {
+  const oldHosts = process.env.WEBHOOK_ALLOWED_HOSTS;
+  delete process.env.WEBHOOK_ALLOWED_HOSTS;
+  assert(!validateWebhookUrl("http://example.com"), "Must reject HTTP");
+  assert(!validateWebhookUrl("https://localhost/foo"), "Must reject localhost");
+  assert(!validateWebhookUrl("https://127.0.0.1/foo"), "Must reject 127.0.0.1");
+  assert(!validateWebhookUrl("https://192.168.1.1/foo"), "Must reject private IPv4");
+  assert(!validateWebhookUrl("https://169.254.169.254/latest/meta-data"), "Must reject metadata endpoint");
+  assert(validateWebhookUrl("https://api.stripe.com/v1/webhook"), "Must allow valid external HTTPS");
+  console.log("✅ Webhook SSRF security tests passed.");
+  if (oldHosts !== undefined) process.env.WEBHOOK_ALLOWED_HOSTS = oldHosts;
+}
+
+function testCanonicalJson() {
+  
+  const obj1 = { a: 1, b: 2 };
+  const obj2 = { b: 2, a: 1 };
+  assert(sha256Canonical(obj1) === sha256Canonical(obj2), "Canonical JSON hash must be stable regardless of key order");
+  console.log("✅ Canonical JSON tests passed.");
+}
+
+testWebhookSecurity();
+testCanonicalJson();

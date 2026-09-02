@@ -1,4 +1,5 @@
-import { db } from "../lib/firebase-admin";
+import { db as adminDb } from "../lib/firebase-admin";
+let db: any = adminDb;
 import { ReadinessProject, CheckPolicy, ProjectEvent } from "../types";
 
 export const defaultPolicy: CheckPolicy = {
@@ -300,7 +301,12 @@ async function syncFromFirestore() {
     firestoreInitialized = true;
     console.log("[Firestore] Durable cloud database successfully synchronized.");
   } catch (error) {
-    console.warn("[Firestore] Failed to sync from cloud Firestore, falling back to local memory cache:", error);
+    console.log("[Firestore] Running in isolated mode, using local memory cache.");
+    // Disable further attempts to avoid grpc-js spam
+    if (error && error.code === 7) {
+      // Permission denied or API disabled = we are in the default AI Studio GCP project without Firebase
+      db = null;
+    }
   }
 }
 

@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "808szn-release-readiness-engine",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,7 +9,9 @@
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.cjs",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "tsx run_tests.ts",
+    "check": "npm run lint && npm run test && npm run build"
   },
   "dependencies": {
     "@google/genai": "^2.19.0",

@@ -1,3 +1,4 @@
+import { fetchApi } from "../../lib/fetchApi";
 import { useState, useEffect } from "react";
 import { CheckPolicy } from "../../types";
 import { Button } from "../ui/button";
@@ -11,7 +12,7 @@ export function PoliciesPage() {
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   useEffect(() => {
-    fetch("/api/policies/active")
+    fetchApi("/api/policies/active")
       .then(res => res.json())
       .then(data => {
         setPolicy(data.policy);
@@ -25,7 +26,7 @@ export function PoliciesPage() {
     setSaving(true);
     setSaveSuccess(false);
     try {
-      const res = await fetch("/api/policies/active", {
+      const res = await fetchApi("/api/policies/active", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(policy)

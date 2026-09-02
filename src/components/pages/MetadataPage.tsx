@@ -1,3 +1,4 @@
+import { fetchApi } from "../../lib/fetchApi";
 import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { ReadinessProject, ReleaseMetadata } from "../../types";
@@ -51,7 +52,7 @@ export function MetadataPage() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const res = await fetch(`/api/projects/${project.id}`, {
+      const res = await fetchApi(`/api/projects/${project.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
